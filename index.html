@@ -50,16 +50,57 @@
   const GRID_H = ARENA_H / GRID_SCALE;
   const ROUND_DURATION = 90; // seconds
 
-  // Symmetric obstacles inside the 360x600 arena
-  const OBSTACLES = [
-    { x: 152, y: 272, w: 56, h: 56, r: 12 }, // Center block
-    { x: 65,  y: 120, w: 65, h: 28, r: 8 },  // Top-left bar
-    { x: 230, y: 120, w: 65, h: 28, r: 8 },  // Top-right bar
-    { x: 65,  y: 452, w: 65, h: 28, r: 8 },  // Bottom-left bar
-    { x: 230, y: 452, w: 65, h: 28, r: 8 },  // Bottom-right bar
-    { x: 55,  y: 265, w: 28, h: 70, r: 8 },  // Mid-left pillar
-    { x: 277, y: 265, w: 28, h: 70, r: 8 }   // Mid-right pillar
+  // Multiple symmetric arena obstacle layouts cycled per stage
+  // All obstacles avoid spawn points: (180,540), (50,55), (310,55), (45,380), (315,380)
+  const STAGE_LAYOUTS = [
+    // Stage 1: Classic Twin Bars & Center Block
+    [
+      { x: 152, y: 272, w: 56, h: 56, r: 12 },
+      { x: 65,  y: 120, w: 65, h: 28, r: 8 },
+      { x: 230, y: 120, w: 65, h: 28, r: 8 },
+      { x: 65,  y: 452, w: 65, h: 28, r: 8 },
+      { x: 230, y: 452, w: 65, h: 28, r: 8 },
+      { x: 55,  y: 265, w: 28, h: 70, r: 8 },
+      { x: 277, y: 265, w: 28, h: 70, r: 8 }
+    ],
+    // Stage 2: The Cross & Corner Bunkers
+    [
+      { x: 164, y: 220, w: 32, h: 160, r: 10 },
+      { x: 100, y: 284, w: 160, h: 32, r: 10 },
+      { x: 75,  y: 115, w: 46, h: 46, r: 10 },
+      { x: 239, y: 115, w: 46, h: 46, r: 10 },
+      { x: 75,  y: 439, w: 46, h: 46, r: 10 },
+      { x: 239, y: 439, w: 46, h: 46, r: 10 }
+    ],
+    // Stage 3: Twin Corridors & Dividers
+    [
+      { x: 130, y: 95,  w: 100, h: 28, r: 8 },
+      { x: 130, y: 465, w: 100, h: 28, r: 8 },
+      { x: 92,  y: 205, w: 32,  h: 190, r: 10 },
+      { x: 236, y: 205, w: 32,  h: 190, r: 10 },
+      { x: 158, y: 278, w: 44,  h: 44, r: 12 }
+    ],
+    // Stage 4: Scattered Pillars Grid
+    [
+      { x: 156, y: 145, w: 48, h: 48, r: 14 },
+      { x: 156, y: 407, w: 48, h: 48, r: 14 },
+      { x: 70,  y: 205, w: 44, h: 44, r: 12 },
+      { x: 246, y: 205, w: 44, h: 44, r: 12 },
+      { x: 158, y: 278, w: 44, h: 44, r: 12 },
+      { x: 92,  y: 340, w: 42, h: 42, r: 12 },
+      { x: 226, y: 340, w: 42, h: 42, r: 12 }
+    ],
+    // Stage 5: Fortress Ring
+    [
+      { x: 115, y: 165, w: 130, h: 26, r: 8 },
+      { x: 115, y: 409, w: 130, h: 26, r: 8 },
+      { x: 70,  y: 235, w: 28,  h: 110, r: 8 },
+      { x: 262, y: 235, w: 28,  h: 110, r: 8 },
+      { x: 146, y: 266, w: 68,  h: 68, r: 16 }
+    ]
   ];
+
+  let currentObstacles = STAGE_LAYOUTS[0];
 
   // Spawn points around the arena
   const SPAWNS = [
@@ -127,6 +168,24 @@
       gain.connect(this.ctx.destination);
       osc.start(now);
       osc.stop(now + 0.055);
+    }
+
+    playPowerUp() {
+      if (!this.ctx || this.muted) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(440, now);
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.16);
+
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.18);
     }
 
     playSplat() {
@@ -322,6 +381,9 @@
     inkGrid.fill(-1);
     inkCounts.fill(0);
 
+    // Select obstacle layout based on current stage
+    currentObstacles = STAGE_LAYOUTS[(stage - 1) % STAGE_LAYOUTS.length];
+
     // Draw dark grid background
     floorCtx.fillStyle = '#181a28';
     floorCtx.fillRect(0, 0, ARENA_W, ARENA_H);
@@ -346,8 +408,8 @@
       const py = (gy + 0.5) * GRID_SCALE;
       for (let gx = 0; gx < GRID_W; gx++) {
         const px = (gx + 0.5) * GRID_SCALE;
-        for (let i = 0; i < OBSTACLES.length; i++) {
-          const ob = OBSTACLES[i];
+        for (let i = 0; i < currentObstacles.length; i++) {
+          const ob = currentObstacles[i];
           if (px >= ob.x && px <= ob.x + ob.w && py >= ob.y && py <= ob.y + ob.h) {
             inkGrid[gy * GRID_W + gx] = -2;
             paintableCells--;
@@ -434,8 +496,8 @@
   }
 
   function pointInObstacle(x, y, radius) {
-    for (let i = 0; i < OBSTACLES.length; i++) {
-      const ob = OBSTACLES[i];
+    for (let i = 0; i < currentObstacles.length; i++) {
+      const ob = currentObstacles[i];
       if (x + radius > ob.x && x - radius < ob.x + ob.w &&
           y + radius > ob.y && y - radius < ob.y + ob.h) {
         return true;
@@ -447,7 +509,8 @@
   // --- GAME STATE & ENTITIES ---
   let gameState = 'START'; // 'START', 'PLAYING', 'ROUND_END'
   let roundTime = ROUND_DURATION;
-  let streak = 0;
+  let stage = 1;
+  let roundsCleared = 0; // Score = stages cleared in a row
   let roundWon = false;
   let shakeTime = 0;
   let shakeMag = 0;
@@ -504,8 +567,8 @@
       x, y,
       text,
       color: colorHex,
-      life: 0.9,
-      maxLife: 0.9
+      life: 0.95,
+      maxLife: 0.95
     });
   }
 
@@ -514,9 +577,43 @@
       this.id = id;
       this.isPlayer = isPlayer;
       this.color = COLORS[id];
-      this.radius = 13.5;
+      this.baseRadius = 13.5;
       this.spawn = SPAWNS[id];
       this.reset();
+    }
+
+    resetGrowth() {
+      this.kills = 0;
+      this.sizeMult = 1.0;
+      this.powerMult = 1.0;
+      this.radius = this.baseRadius;
+    }
+
+    onKill() {
+      this.kills++;
+      // +8% body size up to 1.6x cap; +10% power up to 1.8x cap
+      this.sizeMult = Math.min(1.6, 1.0 + this.kills * 0.08);
+      this.powerMult = Math.min(1.8, 1.0 + this.kills * 0.10);
+      this.radius = this.baseRadius * this.sizeMult;
+
+      // Resolve any immediate wall/obstacle overlap caused by growing
+      this.x = Math.max(this.radius, Math.min(ARENA_W - this.radius, this.x));
+      this.y = Math.max(this.radius, Math.min(ARENA_H - this.radius, this.y));
+      for (let i = 0; i < currentObstacles.length; i++) {
+        const ob = currentObstacles[i];
+        const res = circleRectResolve(this.x, this.y, this.radius, ob.x, ob.y, ob.w, ob.h);
+        if (res.hit) {
+          this.x = res.x;
+          this.y = res.y;
+        }
+      }
+
+      // Floating "+POWER" pop-up over the killer & burst particles
+      addPopup(this.x, this.y - this.radius - 12, '+POWER', this.color.hex);
+      spawnParticles(this.x, this.y, '#ffffff', 12, 35, 110, 2, 4);
+      if (this.isPlayer) {
+        audio.playPowerUp();
+      }
     }
 
     reset() {
@@ -532,25 +629,32 @@
       this.trailTimer = 0;
       this.hitFlash = 0;
       this.wobblePhase = Math.random() * Math.PI * 2;
+      this.resetGrowth();
 
       // AI state
       this.aiTimer = 0;
       this.aiMoveAngle = this.spawn.angle;
-      this.aiTargetX = ARENA_W * 0.5;
-      this.aiTargetY = ARENA_H * 0.5;
 
       // Initial spawn puddle
       paintSplat(this.x, this.y, 26, this.id);
     }
 
     getDifficultyStats() {
-      // Progressive difficulty scaling per round won
-      const lvl = streak;
+      // Stronger stage-by-stage difficulty scaling for AI bots
+      const lvl = stage - 1;
+      const baseFireInterval = this.isPlayer
+        ? 0.135
+        : Math.max(0.095, 0.235 - lvl * 0.024);
+
+      // Power growth makes fire rate faster
+      const fireRateFactor = 1 / (1 + (this.powerMult - 1) * 0.55);
+
       return {
-        speed: this.isPlayer ? 142 : Math.min(168, 114 + lvl * 8.5),
-        fireInterval: this.isPlayer ? 0.135 : Math.max(0.115, 0.24 - lvl * 0.016),
-        aimJitter: this.isPlayer ? 0.04 : Math.max(0.03, 0.28 - lvl * 0.035),
-        thinkInterval: Math.max(0.18, 0.58 - lvl * 0.055)
+        speed: this.isPlayer ? 142 : Math.min(182, 115 + lvl * 12.5),
+        fireInterval: baseFireInterval * fireRateFactor,
+        aimJitter: this.isPlayer ? 0.04 : Math.max(0.015, 0.26 - lvl * 0.048),
+        thinkInterval: Math.max(0.11, 0.54 - lvl * 0.075),
+        sampleCount: Math.min(14, 6 + lvl * 2)
       };
     }
 
@@ -560,6 +664,7 @@
         if (this.deadTimer <= 0) {
           this.deadTimer = 0;
           this.hp = this.maxHp;
+          this.resetGrowth(); // Respawn resets character to base size/power
           this.x = this.spawn.x;
           this.y = this.spawn.y;
           paintSplat(this.x, this.y, 26, this.id);
@@ -610,7 +715,7 @@
         this.aiTimer -= dt;
         if (this.aiTimer <= 0) {
           this.aiTimer = stats.thinkInterval * (0.8 + Math.random() * 0.4);
-          this.updateBotDecision();
+          this.updateBotDecision(stats);
         }
 
         moveX = Math.cos(this.aiMoveAngle);
@@ -629,11 +734,11 @@
       const actualSpd = Math.hypot(this.vx, this.vy);
       this.wobblePhase += (4 + actualSpd * 0.08) * dt;
 
-      // Paint small trail drips while moving
+      // Paint small trail drips while moving (scales with size/power)
       this.trailTimer -= dt;
       if (actualSpd > 20 && this.trailTimer <= 0) {
         this.trailTimer = 0.09;
-        paintSplat(this.x, this.y, 9, this.id);
+        paintSplat(this.x, this.y, 9 * (0.7 + 0.3 * this.powerMult), this.id);
       }
 
       // Arena boundary collisions
@@ -653,8 +758,8 @@
       }
 
       // Obstacle collisions
-      for (let i = 0; i < OBSTACLES.length; i++) {
-        const ob = OBSTACLES[i];
+      for (let i = 0; i < currentObstacles.length; i++) {
+        const ob = currentObstacles[i];
         const res = circleRectResolve(this.x, this.y, this.radius, ob.x, ob.y, ob.w, ob.h);
         if (res.hit) {
           this.x = res.x;
@@ -675,10 +780,11 @@
       }
     }
 
-    updateBotDecision() {
+    updateBotDecision(stats) {
+      const lvl = stage - 1;
       // 1. Check for nearby live enemy within combat range
       let nearestEnemy = null;
-      let nearestDist = 175 + streak * 15;
+      let nearestDist = 175 + lvl * 22;
 
       for (let i = 0; i < botsAndPlayer.length; i++) {
         const other = botsAndPlayer[i];
@@ -690,12 +796,12 @@
         }
       }
 
-      // 2. Sample random points on the arena to find non-owned territory
+      // 2. Sample points on the arena to find non-owned territory (smarter on higher stages)
       let bestSampleX = this.x + (Math.random() - 0.5) * 160;
       let bestSampleY = this.y + (Math.random() - 0.5) * 160;
       let bestScore = -999;
 
-      for (let s = 0; s < 6; s++) {
+      for (let s = 0; s < stats.sampleCount; s++) {
         const sx = 28 + Math.random() * (ARENA_W - 56);
         const sy = 28 + Math.random() * (ARENA_H - 56);
         const gx = Math.floor(sx / GRID_SCALE);
@@ -704,10 +810,11 @@
         if (cellOwner === -2) continue; // Inside obstacle
 
         const dist = Math.hypot(sx - this.x, sy - this.y);
-        let score = -dist * 0.25;
+        let score = -dist * 0.24;
         if (cellOwner === -1) score += 80; // Unpainted floor is priority
-        else if (cellOwner !== this.id) score += 95; // Enemy floor is high priority
-        else score -= 60; // Already owned
+        else if (cellOwner === 0) score += 105 + lvl * 6; // Aggressively target player ink on higher stages
+        else if (cellOwner !== this.id) score += 95; // Other bot ink
+        else score -= 65; // Already owned
 
         if (score > bestScore) {
           bestScore = score;
@@ -719,14 +826,19 @@
       this.aiMoveAngle = Math.atan2(bestSampleY - this.y, bestSampleX - this.x);
 
       if (nearestEnemy) {
-        // Aim at enemy, strafe slightly
-        this.aimAngle = Math.atan2(nearestEnemy.y - this.y, nearestEnemy.x - this.x);
-        if (nearestDist < 95) {
+        // Predictive target leading on higher stages
+        const leadFactor = Math.min(0.85, lvl * 0.16);
+        const travelTime = (nearestDist / 340) * leadFactor;
+        const aimX = nearestEnemy.x + nearestEnemy.vx * travelTime;
+        const aimY = nearestEnemy.y + nearestEnemy.vy * travelTime;
+
+        this.aimAngle = Math.atan2(aimY - this.y, aimX - this.x);
+        if (nearestDist < 105) {
           this.aiMoveAngle = this.aimAngle + (Math.random() > 0.5 ? Math.PI * 0.55 : -Math.PI * 0.55);
         }
       } else {
         // Aim toward movement direction to paint path ahead
-        this.aimAngle = this.aiMoveAngle + (Math.random() - 0.5) * 0.35;
+        this.aimAngle = this.aiMoveAngle + (Math.random() - 0.5) * 0.3;
       }
     }
 
@@ -737,14 +849,19 @@
       const sx = this.x + Math.cos(angle) * muzzleDist;
       const sy = this.y + Math.sin(angle) * muzzleDist;
 
+      // Power scales shot size, splat radius, and damage
+      const pMult = this.powerMult;
+      const shotRadius = 5.5 * (0.75 + 0.25 * pMult);
+
       projectiles.push({
         ownerId: this.id,
         color: this.color,
         x: sx,
         y: sy,
-        vx: Math.cos(angle) * 340,
-        vy: Math.sin(angle) * 340,
-        radius: 5.5,
+        vx: Math.cos(angle) * (340 + (pMult - 1) * 45),
+        vy: Math.sin(angle) * (340 + (pMult - 1) * 45),
+        radius: shotRadius,
+        powerMult: pMult,
         life: 0.44 + Math.random() * 0.08,
         dripTimer: 0.04
       });
@@ -770,9 +887,17 @@
     splat(attackerId) {
       this.deadTimer = 3.0;
       const attackerColor = COLORS[attackerId];
+      const killer = botsAndPlayer[attackerId];
+
+      // Killer immediately grows in size and power!
+      if (killer && killer.id !== this.id) {
+        killer.onKill();
+      }
+
+      const kPower = killer ? killer.powerMult : 1.0;
 
       // Big explosion of attacker's ink on the floor!
-      paintSplat(this.x, this.y, 44, attackerId);
+      paintSplat(this.x, this.y, 44 * (0.85 + 0.15 * kPower), attackerId);
       for (let i = 0; i < 5; i++) {
         const ang = (i / 5) * Math.PI * 2 + Math.random() * 0.5;
         const dist = 22 + Math.random() * 20;
@@ -788,7 +913,7 @@
       triggerShake(this.isPlayer || attackerId === 0 ? 9 : 4.5, 0.26);
 
       const label = this.isPlayer ? 'SPLATTED!' : (attackerId === 0 ? 'SPLAT!' : 'KO!');
-      addPopup(this.x, this.y - 10, label, attackerColor.hex);
+      addPopup(this.x, this.y - 6, label, attackerColor.hex);
     }
 
     draw(ctx) {
@@ -800,12 +925,12 @@
         ctx.strokeStyle = 'rgba(255,255,255,0.22)';
         ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(0, 0, this.radius + 3, 0, Math.PI * 2);
+        ctx.arc(0, 0, this.baseRadius + 3, 0, Math.PI * 2);
         ctx.stroke();
 
         ctx.strokeStyle = this.color.hex;
         ctx.beginPath();
-        ctx.arc(0, 0, this.radius + 3, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+        ctx.arc(0, 0, this.baseRadius + 3, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
         ctx.stroke();
 
         ctx.fillStyle = '#ffffff';
@@ -820,7 +945,7 @@
       ctx.save();
       ctx.translate(this.x, this.y);
 
-      // Player indicator ring underneath
+      // Player indicator ring underneath (scales with current radius)
       if (this.isPlayer) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
         ctx.lineWidth = 2;
@@ -831,21 +956,32 @@
         ctx.setLineDash([]);
       }
 
+      // Subtle golden aura ring if robot has kill growth stacks
+      if (this.kills > 0) {
+        ctx.strokeStyle = 'rgba(254, 228, 64, 0.55)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
       // Drop shadow
       ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
       ctx.beginPath();
-      ctx.arc(0, 3.5, this.radius * 1.02, 0, Math.PI * 2);
+      ctx.arc(0, 3.5 * this.sizeMult, this.radius * 1.02, 0, Math.PI * 2);
       ctx.fill();
 
-      // Rotate to aim direction
+      // Rotate to aim direction and scale by growth multiplier
+      ctx.save();
       ctx.rotate(this.aimAngle);
+      ctx.scale(this.sizeMult, this.sizeMult);
 
       // Front ink blaster nozzle
       ctx.fillStyle = '#222638';
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.roundRect(this.radius * 0.55, -5.5, 10, 11, 3);
+      ctx.roundRect(this.baseRadius * 0.55, -5.5, 10, 11, 3);
       ctx.fill();
       ctx.stroke();
 
@@ -858,14 +994,14 @@
       ctx.strokeStyle = '#10121c';
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+      ctx.arc(0, 0, this.baseRadius, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
       // Glossy top dome highlight
       ctx.fillStyle = 'rgba(255, 255, 255, 0.32)';
       ctx.beginPath();
-      ctx.arc(-3.5, -3.5, this.radius * 0.45, 0, Math.PI * 2);
+      ctx.arc(-3.5, -3.5, this.baseRadius * 0.45, 0, Math.PI * 2);
       ctx.fill();
 
       // Robot antenna nub on back
@@ -890,19 +1026,21 @@
       ctx.arc(eyeOffsetX + 1.4, eyeSpreadY, 1.9, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.restore();
+      ctx.restore(); // Restore rotation & growth scale
 
       // Health bar if damaged
       if (this.hp < this.maxHp - 1) {
-        const bw = 26;
+        const bw = 26 * Math.min(1.35, this.sizeMult);
         const bh = 4.5;
-        const bx = this.x - bw * 0.5;
-        const by = this.y - this.radius - 11;
+        const bx = -bw * 0.5;
+        const by = -this.radius - 11;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
         ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
         ctx.fillStyle = this.color.hex;
         ctx.fillRect(bx, by, bw * Math.max(0, this.hp / this.maxHp), bh);
       }
+
+      ctx.restore();
     }
   }
 
@@ -932,13 +1070,17 @@
     if (performance.now() < stateTransitionLock) return;
 
     if (gameState === 'START') {
-      streak = 0;
+      stage = 1;
+      roundsCleared = 0;
       startRound();
     } else if (gameState === 'ROUND_END') {
       if (roundWon) {
+        stage++;
         startRound();
       } else {
-        streak = 0;
+        // Retry restarts at Stage 1
+        stage = 1;
+        roundsCleared = 0;
         startRound();
       }
     }
@@ -1113,7 +1255,7 @@
 
     roundWon = (bestId === 0);
     if (roundWon) {
-      streak++;
+      roundsCleared++;
       spawnConfetti();
       audio.playJingle(true);
     } else {
@@ -1173,10 +1315,12 @@
       p.life -= dt;
       p.dripTimer -= dt;
 
+      const splatScale = 0.72 + 0.28 * (p.powerMult || 1.0);
+
       // Paint drip trail underneath flying ink shot
       if (p.dripTimer <= 0) {
         p.dripTimer = 0.036;
-        paintSplat(p.x, p.y, 8.5, p.ownerId);
+        paintSplat(p.x, p.y, 8.5 * splatScale, p.ownerId);
       }
 
       let hitSomething = false;
@@ -1186,14 +1330,14 @@
           p.y <= p.radius || p.y >= ARENA_H - p.radius) {
         const cx = Math.max(6, Math.min(ARENA_W - 6, p.x));
         const cy = Math.max(6, Math.min(ARENA_H - 6, p.y));
-        paintSplat(cx, cy, 15, p.ownerId);
+        paintSplat(cx, cy, 15 * splatScale, p.ownerId);
         spawnParticles(cx, cy, p.color.hex, 5, 25, 90, 2, 3.8);
         hitSomething = true;
       }
 
       // Obstacles
       if (!hitSomething && pointInObstacle(p.x, p.y, p.radius)) {
-        paintSplat(p.x - p.vx * dt, p.y - p.vy * dt, 14, p.ownerId);
+        paintSplat(p.x - p.vx * dt, p.y - p.vy * dt, 14 * splatScale, p.ownerId);
         spawnParticles(p.x, p.y, p.color.hex, 6, 30, 100, 2, 4);
         hitSomething = true;
       }
@@ -1205,9 +1349,10 @@
           if (bot.id === p.ownerId || bot.deadTimer > 0) continue;
           const distSq = (bot.x - p.x) ** 2 + (bot.y - p.y) ** 2;
           if (distSq <= (bot.radius + p.radius) ** 2) {
-            paintSplat(p.x, p.y, 17, p.ownerId);
+            paintSplat(p.x, p.y, 17 * splatScale, p.ownerId);
             spawnParticles(p.x, p.y, p.color.hex, 8, 45, 135, 2.2, 4.2);
-            bot.takeDamage(26, p.ownerId);
+            const dmg = 26 * (0.85 + 0.15 * (p.powerMult || 1.0));
+            bot.takeDamage(dmg, p.ownerId);
             hitSomething = true;
             break;
           }
@@ -1216,7 +1361,7 @@
 
       // End of range burst
       if (!hitSomething && p.life <= 0) {
-        paintSplat(p.x, p.y, 18 + Math.random() * 4, p.ownerId);
+        paintSplat(p.x, p.y, (18 + Math.random() * 4) * splatScale, p.ownerId);
         spawnParticles(p.x, p.y, p.color.hex, 6, 25, 85, 2, 3.8);
         hitSomething = true;
       }
@@ -1281,8 +1426,8 @@
     ctx.drawImage(floorCanvas, 0, 0, ARENA_W, ARENA_H);
 
     // 2. Draw obstacles with 3D depth
-    for (let i = 0; i < OBSTACLES.length; i++) {
-      const ob = OBSTACLES[i];
+    for (let i = 0; i < currentObstacles.length; i++) {
+      const ob = currentObstacles[i];
       // Shadow
       ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.beginPath();
@@ -1435,19 +1580,19 @@
     ctx.lineTo(viewW, hudHeight);
     ctx.stroke();
 
-    // Row 1: Streak badge & Round Timer
+    // Row 1: Stage badge & Round Timer
     const topCenterY = 21;
     ctx.textBaseline = 'middle';
 
-    // Streak badge on left
+    // Stage badge on left
     ctx.fillStyle = '#23273e';
     ctx.beginPath();
     ctx.roundRect(12, 7, 102, 26, 7);
     ctx.fill();
-    ctx.fillStyle = '#a6b0d8';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('STREAK: ' + streak, 20, topCenterY);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('STAGE ' + stage, 63, topCenterY);
 
     // Timer in center
     const secs = Math.ceil(roundTime);
@@ -1518,7 +1663,7 @@
       ctx.roundRect(innerX, innerY, innerW, innerH, 3);
       ctx.fill();
 
-      const fillRatio = Math.min(1, pct / 45); // Visual bar scales smoothly
+      const fillRatio = Math.min(1, pct / 45);
       if (fillRatio > 0) {
         ctx.fillStyle = c.hex;
         ctx.beginPath();
@@ -1537,7 +1682,7 @@
     ctx.fillStyle = 'rgba(10, 11, 18, 0.82)';
     ctx.fillRect(0, 0, viewW, viewH);
 
-    // Draw confetti if round won
+    // Draw confetti if stage cleared
     for (let i = 0; i < confetti.length; i++) {
       const cf = confetti[i];
       ctx.save();
@@ -1611,7 +1756,7 @@
       ctx.restore();
 
     } else if (gameState === 'ROUND_END') {
-      const cardH = 380;
+      const cardH = 385;
       const cardX = cx - cardW * 0.5;
       const cardY = cy - cardH * 0.5;
       const accent = roundWon ? COLORS[0].hex : COLORS[1].hex;
@@ -1625,19 +1770,27 @@
       ctx.stroke();
 
       // Header
-      ctx.font = '900 38px sans-serif';
+      ctx.font = '900 36px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillStyle = accent;
-      ctx.fillText(roundWon ? 'YOU WIN!' : 'GAME OVER', cx, cardY + 56);
+      ctx.fillText(roundWon ? 'STAGE CLEAR!' : 'GAME OVER', cx, cardY + 54);
 
-      // Score / Win streak
-      ctx.font = 'bold 16px sans-serif';
+      // Stage & Score info
+      ctx.font = 'bold 15px sans-serif';
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(
-        roundWon ? `WIN STREAK: ${streak} IN A ROW!` : `FINAL SCORE: ${streak} ROUNDS WON`,
-        cx,
-        cardY + 90
-      );
+      if (roundWon) {
+        ctx.fillText(
+          `STAGE ${stage} CLEARED  •  SCORE: ${roundsCleared}`,
+          cx,
+          cardY + 86
+        );
+      } else {
+        ctx.fillText(
+          `STAGE REACHED: ${stage}  •  SCORE: ${roundsCleared}`,
+          cx,
+          cardY + 86
+        );
+      }
 
       // Standings bars for all 5 robots
       const standings = [0, 1, 2, 3, 4].map(id => ({
@@ -1645,7 +1798,7 @@
         pct: (inkCounts[id] / paintableCells) * 100
       })).sort((a, b) => b.pct - a.pct);
 
-      const listTop = cardY + 116;
+      const listTop = cardY + 114;
       const rowH = 32;
       const barLeft = cardX + 24;
       const barMaxW = cardW - 48;
@@ -1684,19 +1837,23 @@
       // Action button
       const pulse = 1 + Math.sin(performance.now() * 0.006) * 0.03;
       ctx.save();
-      ctx.translate(cx, cardY + 324);
+      ctx.translate(cx, cardY + 328);
       ctx.scale(pulse, pulse);
 
       ctx.fillStyle = accent;
       ctx.beginPath();
-      ctx.roundRect(-125, -26, 250, 52, 14);
+      ctx.roundRect(-130, -26, 260, 52, 14);
       ctx.fill();
 
       ctx.fillStyle = roundWon ? '#0a0c14' : '#ffffff';
-      ctx.font = '900 18px sans-serif';
+      ctx.font = '900 17px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(roundWon ? 'TAP FOR NEXT ROUND' : 'RETRY (TAP)', 0, 1);
+      ctx.fillText(
+        roundWon ? `TAP FOR STAGE ${stage + 1}` : 'RETRY STAGE 1 (TAP)',
+        0,
+        1
+      );
       ctx.restore();
     }
 
